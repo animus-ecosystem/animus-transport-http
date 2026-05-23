@@ -48,7 +48,6 @@ pub async fn call(
         name: plugin,
         method: body.method,
         params: body.params,
-        ..Default::default()
     };
     wire_response(client.plugin_call(request).await)
 }

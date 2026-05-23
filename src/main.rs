@@ -3,8 +3,9 @@
 //! Wires the [`HttpTransportBackend`] into [`transport_backend_main`] so the
 //! Animus plugin host can drive its lifecycle over stdio.
 
-use animus_plugin_protocol::{PluginInfo, PLUGIN_KIND_TRANSPORT_BACKEND};
+use animus_plugin_protocol::PluginInfo;
 use animus_plugin_runtime::transport_backend_main;
+use animus_transport_protocol::PLUGIN_KIND_TRANSPORT_BACKEND;
 
 use animus_transport_http::HttpTransportBackend;
 

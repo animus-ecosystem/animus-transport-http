@@ -42,5 +42,9 @@ pub async fn cancel(State(state): State<AppState>, Path(id): Path<String>) -> Re
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
-    wire_response(client.agent_cancel(AgentCancelRequest { id }).await)
+    wire_response(
+        client
+            .agent_cancel(AgentCancelRequest { session_id: id })
+            .await,
+    )
 }

@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
+use animus_plugin_protocol::{HealthCheckResult, HealthStatus};
 use animus_transport_protocol::{
-    HealthCheckResult, HealthStatus, ProtocolError, TransportBackend, TransportConfig,
-    TransportInfo, TransportSchema,
+    BackendError, TransportBackend, TransportConfig, TransportInfo, TransportSchema,
 };
 use async_trait::async_trait;
 use tokio::sync::Mutex;
@@ -22,23 +22,27 @@ pub struct HttpTransportBackend {
 
 #[async_trait]
 impl TransportBackend for HttpTransportBackend {
-    async fn start(&self, config: TransportConfig) -> Result<TransportInfo, ProtocolError> {
+    async fn start(&self, config: TransportConfig) -> Result<TransportInfo, BackendError> {
         let settings = HttpTransportSettings::from_config(&config);
         let app = server::build_router(settings.clone());
 
         let listener = tokio::net::TcpListener::bind(&settings.bind_addr)
             .await
             .map_err(|e| {
-                ProtocolError::other(format!(
-                    "failed to bind {}: {e}",
-                    settings.bind_addr
-                ))
+                if e.kind() == std::io::ErrorKind::AddrInUse {
+                    BackendError::AddressInUse(settings.bind_addr.clone())
+                } else {
+                    BackendError::Other(anyhow::anyhow!(
+                        "failed to bind {}: {e}",
+                        settings.bind_addr
+                    ))
+                }
             })?;
 
-        let bound = listener
-            .local_addr()
-            .map(|a| a.to_string())
-            .unwrap_or(settings.bind_addr.clone());
+        let bound = match listener.local_addr() {
+            Ok(addr) => addr.to_string(),
+            Err(_) => settings.bind_addr.clone(),
+        };
 
         tracing::info!(addr = %bound, "animus-transport-http listening");
 
@@ -59,7 +63,7 @@ impl TransportBackend for HttpTransportBackend {
         })
     }
 
-    async fn shutdown(&self) -> Result<(), ProtocolError> {
+    async fn shutdown(&self) -> Result<(), BackendError> {
         if let Some(h) = self.server_handle.lock().await.take() {
             h.abort();
         }
@@ -77,7 +81,7 @@ impl TransportBackend for HttpTransportBackend {
         }
     }
 
-    async fn health(&self) -> Result<HealthCheckResult, ProtocolError> {
+    async fn health(&self) -> Result<HealthCheckResult, BackendError> {
         let started = *self.started_at.lock().await;
         let uptime_ms = started.map(|t| {
             chrono::Utc::now()
@@ -90,7 +94,7 @@ impl TransportBackend for HttpTransportBackend {
             status: if started.is_some() {
                 HealthStatus::Healthy
             } else {
-                HealthStatus::Unknown
+                HealthStatus::Degraded
             },
             uptime_ms,
             memory_usage_bytes: None,

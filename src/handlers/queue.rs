@@ -1,7 +1,7 @@
 //! `/api/v1/queue/*` handlers.
 
 use animus_control_protocol::types::{
-    QueueDropRequest, QueueEnqueueRequest, QueueHoldRequest, QueueListRequest,
+    QueueDropRequest, QueueEnqueueRequest, QueueEntryStatus, QueueHoldRequest, QueueListRequest,
     QueueReleaseRequest, QueueReorderRequest,
 };
 use axum::extract::{Path, Query, State};
@@ -17,7 +17,8 @@ use crate::server::AppState;
 #[derive(Debug, Default, Deserialize)]
 pub struct ListQuery {
     pub status: Option<String>,
-    pub limit: Option<usize>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }
 
 pub async fn list(State(state): State<AppState>, Query(q): Query<ListQuery>) -> Response {
@@ -25,12 +26,21 @@ pub async fn list(State(state): State<AppState>, Query(q): Query<ListQuery>) -> 
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
+    let status = match q.status.as_deref().map(parse_status).transpose() {
+        Ok(s) => s,
+        Err(err) => return invalid_input(err),
+    };
     let request = QueueListRequest {
-        status: q.status,
+        status,
+        cursor: q.cursor,
         limit: q.limit,
-        ..Default::default()
     };
     wire_response(client.queue_list(request).await)
+}
+
+fn parse_status(s: &str) -> Result<QueueEntryStatus, String> {
+    serde_json::from_value(serde_json::Value::String(s.to_string()))
+        .map_err(|e| format!("invalid status `{s}`: {e}"))
 }
 
 pub async fn stats(State(state): State<AppState>) -> Response {
@@ -74,8 +84,10 @@ pub async fn hold(
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
-    let reason = body
-        .and_then(|b| b.0.get("reason").and_then(|v| v.as_str().map(str::to_string)));
+    let reason = body.and_then(|b| {
+        b.0.get("reason")
+            .and_then(|v| v.as_str().map(str::to_string))
+    });
     wire_response(client.queue_hold(QueueHoldRequest { id, reason }).await)
 }
 

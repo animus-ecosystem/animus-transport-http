@@ -27,7 +27,11 @@ pub fn ok_envelope<T: Serialize>(data: T) -> Value {
 }
 
 /// Build the standard error envelope.
-pub fn error_envelope(code: impl Into<String>, message: impl Into<String>, exit_code: i32) -> Value {
+pub fn error_envelope(
+    code: impl Into<String>,
+    message: impl Into<String>,
+    exit_code: i32,
+) -> Value {
     json!({
         "ok": false,
         "error": {

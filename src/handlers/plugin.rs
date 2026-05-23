@@ -27,7 +27,7 @@ pub async fn list(State(state): State<AppState>, Query(q): Query<ListQuery>) -> 
     };
     let request = PluginListRequest {
         kind: q.kind,
-        ..Default::default()
+        include_warnings: false,
     };
     wire_response(client.plugin_list(request).await)
 }
@@ -57,7 +57,11 @@ pub async fn uninstall(State(state): State<AppState>, Path(name): Path<String>) 
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
-    wire_response(client.plugin_uninstall(PluginUninstallRequest { name }).await)
+    wire_response(
+        client
+            .plugin_uninstall(PluginUninstallRequest { name })
+            .await,
+    )
 }
 
 pub async fn ping(State(state): State<AppState>, Path(name): Path<String>) -> Response {
@@ -84,7 +88,7 @@ pub async fn call(State(state): State<AppState>, Json(body): Json<Value>) -> Res
 pub struct SearchQuery {
     pub query: Option<String>,
     pub kind: Option<String>,
-    pub limit: Option<usize>,
+    pub tag: Option<String>,
 }
 
 pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>) -> Response {
@@ -95,21 +99,29 @@ pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>)
     let request = PluginSearchRequest {
         query: q.query.unwrap_or_default(),
         kind: q.kind,
-        limit: q.limit,
-        ..Default::default()
+        tag: q.tag,
     };
     wire_response(client.plugin_search(request).await)
 }
 
-pub async fn browse(State(state): State<AppState>, Query(q): Query<SearchQuery>) -> Response {
+#[derive(Debug, Default, Deserialize)]
+pub struct BrowseQuery {
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub installed: bool,
+    #[serde(default)]
+    pub available: bool,
+}
+
+pub async fn browse(State(state): State<AppState>, Query(q): Query<BrowseQuery>) -> Response {
     let client = match connect(&state.settings.control_socket_path).await {
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
     let request = PluginBrowseRequest {
         kind: q.kind,
-        limit: q.limit,
-        ..Default::default()
+        installed: q.installed,
+        available: q.available,
     };
     wire_response(client.plugin_browse(request).await)
 }

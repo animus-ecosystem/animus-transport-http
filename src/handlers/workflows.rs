@@ -1,8 +1,10 @@
 //! `/api/v1/workflows/*` handlers.
 
+use std::collections::BTreeMap;
+
 use animus_control_protocol::types::{
     WorkflowCancelRequest, WorkflowGetRequest, WorkflowListRequest, WorkflowPauseRequest,
-    WorkflowResumeRequest, WorkflowRunRequest,
+    WorkflowResumeRequest, WorkflowRunRequest, WorkflowStatus,
 };
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Response};
@@ -17,10 +19,8 @@ use crate::server::AppState;
 #[derive(Debug, Default, Deserialize)]
 pub struct ListQuery {
     pub status: Option<String>,
-    pub task_id: Option<String>,
-    pub workflow_ref: Option<String>,
-    pub limit: Option<usize>,
-    pub offset: Option<usize>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }
 
 pub async fn list(State(state): State<AppState>, Query(q): Query<ListQuery>) -> Response {
@@ -28,15 +28,31 @@ pub async fn list(State(state): State<AppState>, Query(q): Query<ListQuery>) -> 
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
+    let status = match q.status.as_deref().map(parse_status).transpose() {
+        Ok(s) => s,
+        Err(err) => return invalid_input(err),
+    };
     let request = WorkflowListRequest {
-        status: q.status,
-        task_id: q.task_id,
-        workflow_ref: q.workflow_ref,
+        status,
+        cursor: q.cursor,
         limit: q.limit,
-        offset: q.offset,
-        ..Default::default()
     };
     wire_response(client.workflow_list(request).await)
+}
+
+fn parse_status(s: &str) -> Result<WorkflowStatus, String> {
+    serde_json::from_value(serde_json::Value::String(s.to_string()))
+        .map_err(|e| format!("invalid status `{s}`: {e}"))
+}
+
+fn invalid_input(msg: String) -> Response {
+    use crate::handlers::error_envelope;
+    use axum::http::StatusCode;
+    (
+        StatusCode::BAD_REQUEST,
+        Json(error_envelope("invalid_input", msg, 2)),
+    )
+        .into_response()
 }
 
 pub async fn get(State(state): State<AppState>, Path(id): Path<String>) -> Response {
@@ -61,12 +77,33 @@ pub async fn run(State(state): State<AppState>, Json(body): Json<RunBody>) -> Re
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
+    let params = match value_to_param_map(body.params) {
+        Ok(p) => p,
+        Err(err) => return invalid_input(err),
+    };
     let request = WorkflowRunRequest {
         task_id: body.task_id,
         definition: body.definition,
-        params: body.params,
+        params,
     };
     wire_response(client.workflow_run(request).await)
+}
+
+fn value_to_param_map(value: Value) -> Result<BTreeMap<String, Value>, String> {
+    match value {
+        Value::Null => Ok(BTreeMap::new()),
+        Value::Object(map) => Ok(map.into_iter().collect()),
+        other => Err(format!(
+            "`params` must be a JSON object, got {}",
+            match other {
+                Value::Array(_) => "array",
+                Value::String(_) => "string",
+                Value::Number(_) => "number",
+                Value::Bool(_) => "boolean",
+                Value::Null | Value::Object(_) => unreachable!(),
+            }
+        )),
+    }
 }
 
 pub async fn pause(State(state): State<AppState>, Path(id): Path<String>) -> Response {
@@ -104,5 +141,9 @@ pub async fn cancel(State(state): State<AppState>, Path(id): Path<String>) -> Re
         Ok(c) => c,
         Err((code, body)) => return (code, body).into_response(),
     };
-    wire_response(client.workflow_cancel(WorkflowCancelRequest { id }).await)
+    wire_response(
+        client
+            .workflow_cancel(WorkflowCancelRequest { id, reason: None })
+            .await,
+    )
 }
