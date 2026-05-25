@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -49,19 +50,39 @@ jobs:
         id: package
         shell: bash
         run: |
+          set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           stage="animus-transport-http-${version}-${{ matrix.target }}"
           mkdir -p "dist/${stage}"
           cp "target/${{ matrix.target }}/release/animus-transport-http" "dist/${stage}/"
           cp README.md LICENSE plugin.toml "dist/${stage}/"
           tar -czf "dist/${stage}.tar.gz" -C dist "${stage}"
+          ( cd dist && shasum -a 256 "${stage}.tar.gz" > "${stage}.tar.gz.sha256" )
           echo "asset=dist/${stage}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "checksum=dist/${stage}.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+          echo "stage=${stage}" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign archive with cosign (keyless)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          cosign sign-blob \
+            --yes \
+            --bundle "${{ steps.package.outputs.stage }}.tar.gz.bundle" \
+            "${{ steps.package.outputs.stage }}.tar.gz"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: animus-transport-http-${{ matrix.target }}
-          path: ${{ steps.package.outputs.asset }}
+          path: |
+            dist/${{ steps.package.outputs.stage }}.tar.gz
+            dist/${{ steps.package.outputs.stage }}.tar.gz.sha256
+            dist/${{ steps.package.outputs.stage }}.tar.gz.bundle
 
   release:
     name: Publish release
@@ -76,5 +97,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.tar.gz
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.tar.gz.bundle
           generate_release_notes: true
