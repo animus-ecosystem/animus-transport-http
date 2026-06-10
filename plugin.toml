@@ -1,21 +1,25 @@
-[plugin]
+schema = "animus.plugin.v1"
 name = "animus-transport-http"
 version = "0.1.0"
 plugin_kind = "transport_backend"
 description = "HTTP REST transport plugin for Animus — exposes daemon control as /api/v1/* endpoints"
-homepage = "https://github.com/launchapp-dev/animus-cli"
-repository = "https://github.com/launchapp-dev/animus-transport-http"
-license = "Elastic-2.0"
+
+[capabilities]
+streaming = true
+progress = false
+cancellation = false
+methods = [
+  "transport/start",
+  "transport/shutdown",
+  "transport/schema",
+  "health/check",
+]
 
 [transport]
+kinds = ["http", "rest"]
 default_port = 8080
 supports_streaming = true
 supports_websocket = false
-kinds = ["http", "rest"]
 
-[runtime]
-binary = "animus-transport-http"
-protocol = "stdio"
-
-[capabilities]
-required = ["control_socket"]
+[binary]
+default = "animus-transport-http"

@@ -71,16 +71,47 @@ pub fn build_router(settings: HttpTransportSettings) -> Router {
         .layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::predicate(|origin, _| {
-                    origin
-                        .to_str()
-                        .map(|o| {
-                            o.starts_with("http://localhost") || o.starts_with("http://127.0.0.1")
-                        })
-                        .unwrap_or(false)
+                    origin.to_str().map(origin_allowed).unwrap_or(false)
                 }))
                 .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
                 .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
                 .max_age(Duration::from_secs(3600)),
         )
         .with_state(state)
+}
+
+fn origin_allowed(origin: &str) -> bool {
+    ["http://localhost", "http://127.0.0.1"]
+        .iter()
+        .any(|base| {
+            origin == *base
+                || origin
+                    .strip_prefix(base)
+                    .and_then(|rest| rest.strip_prefix(':'))
+                    .is_some_and(|port| {
+                        !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit())
+                    })
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::origin_allowed;
+
+    #[test]
+    fn allows_localhost_origins() {
+        assert!(origin_allowed("http://localhost"));
+        assert!(origin_allowed("http://localhost:3000"));
+        assert!(origin_allowed("http://127.0.0.1"));
+        assert!(origin_allowed("http://127.0.0.1:8080"));
+    }
+
+    #[test]
+    fn rejects_lookalike_origins() {
+        assert!(!origin_allowed("http://localhost.evil.com"));
+        assert!(!origin_allowed("http://127.0.0.1.evil.com"));
+        assert!(!origin_allowed("http://localhost:3000.evil.com"));
+        assert!(!origin_allowed("https://evil.com"));
+        assert!(!origin_allowed("http://localhost:"));
+    }
 }
