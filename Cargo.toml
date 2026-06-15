@@ -17,10 +17,10 @@ path = "src/main.rs"
 path = "src/lib.rs"
 
 [dependencies]
-animus-plugin-protocol = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.1.8" }
-animus-transport-protocol = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.1.8" }
-animus-control-protocol = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.1.8", features = ["client"] }
-animus-plugin-runtime = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.1.8" }
+animus-plugin-protocol = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.5.12" }
+animus-transport-protocol = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.5.12" }
+animus-control-protocol = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.5.12", features = ["client"] }
+animus-plugin-runtime = { git = "https://github.com/launchapp-dev/animus-protocol", tag = "v0.5.12" }
 
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
