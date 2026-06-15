@@ -74,6 +74,91 @@ async fn subject_call_route_exists() {
 }
 
 #[tokio::test]
+async fn subjects_list_route_exists() {
+    let status = route_exists("GET", "/api/v1/subjects?kind=task").await;
+    assert_ne!(status, StatusCode::NOT_FOUND, "got {status}");
+}
+
+#[tokio::test]
+async fn subjects_next_route_exists() {
+    let status = route_exists("GET", "/api/v1/subjects/next?kind=task").await;
+    assert_ne!(status, StatusCode::NOT_FOUND, "got {status}");
+}
+
+#[tokio::test]
+async fn subjects_list_without_kind_is_400() {
+    // `kind` is required and validated before reaching the daemon, so this
+    // returns a client-side 400 even with no control socket.
+    let status = route_exists("GET", "/api/v1/subjects").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "got {status}");
+}
+
+#[tokio::test]
+async fn subjects_next_without_kind_is_400() {
+    let status = route_exists("GET", "/api/v1/subjects/next").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "got {status}");
+}
+
+#[tokio::test]
+async fn subjects_create_route_exists() {
+    let app = build_router(test_settings());
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/subjects")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"kind":"task","title":"hello"}"#))
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    assert_ne!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn subjects_get_route_exists() {
+    let status = route_exists("GET", "/api/v1/subjects/task:T-1").await;
+    assert_ne!(status, StatusCode::NOT_FOUND, "got {status}");
+}
+
+#[tokio::test]
+async fn subjects_status_route_exists() {
+    let app = build_router(test_settings());
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/subjects/task:T-1/status")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"status":"ready"}"#))
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    assert_ne!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn workflows_execute_route_exists() {
+    let app = build_router(test_settings());
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/workflows/execute")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"definition":"build"}"#))
+        .unwrap();
+    let response = app.oneshot(req).await.unwrap();
+    assert_ne!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn daemon_start_route_exists() {
+    let status = route_exists("POST", "/api/v1/daemon/start").await;
+    assert_ne!(status, StatusCode::NOT_FOUND, "got {status}");
+}
+
+#[tokio::test]
+async fn agent_routes_removed() {
+    // Agent ops are CLI/in-process only — the kernel returns NotSupported
+    // over control. The HTTP transport intentionally exposes no agent routes.
+    let status = route_exists("POST", "/api/v1/agent/run").await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "got {status}");
+}
+
+#[tokio::test]
 async fn unknown_route_404s() {
     let status = route_exists("GET", "/api/v1/totally-not-a-route").await;
     assert_eq!(status, StatusCode::NOT_FOUND);

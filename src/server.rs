@@ -27,12 +27,14 @@ pub fn build_router(settings: HttpTransportSettings) -> Router {
         // daemon
         .route("/daemon/status", get(handlers::daemon::status))
         .route("/daemon/health", get(handlers::daemon::health))
+        .route("/daemon/start", post(handlers::daemon::start))
         .route("/daemon/agents", get(handlers::daemon::agents))
         .route("/daemon/logs", get(handlers::daemon::logs))
         .route("/daemon/logs", delete(handlers::daemon::clear_logs))
         // workflows
         .route("/workflows", get(handlers::workflows::list))
         .route("/workflows/run", post(handlers::workflows::run))
+        .route("/workflows/execute", post(handlers::workflows::execute))
         .route("/workflows/:id", get(handlers::workflows::get))
         .route("/workflows/:id/pause", post(handlers::workflows::pause))
         .route("/workflows/:id/resume", post(handlers::workflows::resume))
@@ -58,12 +60,15 @@ pub fn build_router(settings: HttpTransportSettings) -> Router {
         .route("/plugin/search", get(handlers::plugin::search))
         .route("/plugin/browse", get(handlers::plugin::browse))
         .route("/plugin/update", post(handlers::plugin::update))
+        // subject CRUD (typed routes through the daemon SubjectRouter)
+        .route("/subjects", get(handlers::subject_ops::list))
+        .route("/subjects", post(handlers::subject_ops::create))
+        .route("/subjects/next", get(handlers::subject_ops::next))
+        .route("/subjects/:id", get(handlers::subject_ops::get))
+        .route("/subjects/:id", post(handlers::subject_ops::update))
+        .route("/subjects/:id/status", post(handlers::subject_ops::status))
         // subject (thin wrapper over plugin/call for subject backends)
-        .route("/subject/:plugin/call", post(handlers::subject::call))
-        // agent
-        .route("/agent/run", post(handlers::agent::run))
-        .route("/agent/:id/status", get(handlers::agent::status))
-        .route("/agent/:id/cancel", post(handlers::agent::cancel));
+        .route("/subject/:plugin/call", post(handlers::subject::call));
 
     Router::new()
         .nest("/api/v1", api)
@@ -81,17 +86,13 @@ pub fn build_router(settings: HttpTransportSettings) -> Router {
 }
 
 fn origin_allowed(origin: &str) -> bool {
-    ["http://localhost", "http://127.0.0.1"]
-        .iter()
-        .any(|base| {
-            origin == *base
-                || origin
-                    .strip_prefix(base)
-                    .and_then(|rest| rest.strip_prefix(':'))
-                    .is_some_and(|port| {
-                        !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit())
-                    })
-        })
+    ["http://localhost", "http://127.0.0.1"].iter().any(|base| {
+        origin == *base
+            || origin
+                .strip_prefix(base)
+                .and_then(|rest| rest.strip_prefix(':'))
+                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+    })
 }
 
 #[cfg(test)]

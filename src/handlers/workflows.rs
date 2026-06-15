@@ -3,9 +3,10 @@
 use std::collections::BTreeMap;
 
 use animus_control_protocol::types::{
-    WorkflowCancelRequest, WorkflowGetRequest, WorkflowListRequest, WorkflowPauseRequest,
-    WorkflowResumeRequest, WorkflowRunRequest, WorkflowStatus,
+    WorkflowCancelRequest, WorkflowExecuteRequest, WorkflowGetRequest, WorkflowListRequest,
+    WorkflowPauseRequest, WorkflowResumeRequest, WorkflowRunRequest, WorkflowStatus,
 };
+use animus_subject_protocol::SubjectId;
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -86,6 +87,37 @@ pub async fn run(State(state): State<AppState>, Json(body): Json<RunBody>) -> Re
         params,
     };
     wire_response(client.workflow_run(request).await)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExecuteBody {
+    /// Workflow definition name to run.
+    pub definition: String,
+    /// Optional subject id to associate the run with.
+    #[serde(default)]
+    pub subject_id: Option<String>,
+    #[serde(default)]
+    pub params: Value,
+}
+
+pub async fn execute(State(state): State<AppState>, Json(body): Json<ExecuteBody>) -> Response {
+    let client = match connect(&state.settings.control_socket_path).await {
+        Ok(c) => c,
+        Err((code, body)) => return (code, body).into_response(),
+    };
+    if body.definition.is_empty() {
+        return invalid_input("workflow execute requires a non-empty `definition`".to_string());
+    }
+    let params = match value_to_param_map(body.params) {
+        Ok(p) => p,
+        Err(err) => return invalid_input(err),
+    };
+    let request = WorkflowExecuteRequest {
+        definition: body.definition,
+        params,
+        subject_id: body.subject_id.map(SubjectId::new),
+    };
+    wire_response(client.workflow_execute(request).await)
 }
 
 fn value_to_param_map(value: Value) -> Result<BTreeMap<String, Value>, String> {

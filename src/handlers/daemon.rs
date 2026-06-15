@@ -34,6 +34,19 @@ pub async fn agents(State(state): State<AppState>) -> Response {
     wire_response(client.daemon_agents().await)
 }
 
+pub async fn start(State(state): State<AppState>) -> Response {
+    // `daemon/start` is a protocol no-op when issued over control: the daemon
+    // serving this request is already running. `daemon/stop` and
+    // `daemon/restart` return NotSupported over control (the kernel forbids
+    // self-termination — use the CLI), so they are intentionally not exposed
+    // as routes.
+    let client = match connect(&state.settings.control_socket_path).await {
+        Ok(c) => c,
+        Err((code, body)) => return (code, body).into_response(),
+    };
+    wire_response(client.daemon_start().await)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LogsQuery {
     pub limit: Option<usize>,

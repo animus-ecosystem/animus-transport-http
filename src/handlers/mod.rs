@@ -5,11 +5,11 @@
 //! There is no in-process fallback — transport plugins assume the daemon is
 //! running. If the socket is unreachable the handler returns 503.
 
-pub mod agent;
 pub mod daemon;
 pub mod plugin;
 pub mod queue;
 pub mod subject;
+pub mod subject_ops;
 pub mod workflows;
 
 use std::path::Path;

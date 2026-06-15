@@ -1,6 +1,6 @@
 schema = "animus.plugin.v1"
 name = "animus-transport-http"
-version = "0.1.0"
+version = "0.1.1"
 plugin_kind = "transport_backend"
 description = "HTTP REST transport plugin for Animus — exposes daemon control as /api/v1/* endpoints"
 
