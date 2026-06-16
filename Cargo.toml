@@ -1,6 +1,6 @@
 [package]
 name = "animus-transport-http"
-version = "0.1.1"
+version = "0.2.2"
 edition = "2021"
 license = "Elastic-2.0"
 description = "HTTP REST transport plugin for Animus — exposes daemon control as /api/v1/* endpoints"
