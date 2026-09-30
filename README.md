@@ -78,6 +78,27 @@ Use the GraphQL transport (`animus-transport-graphql`) for subscriptions.
 Transport plugins assume the daemon is running. If the control socket cannot
 be reached, requests return HTTP 503 with a structured envelope.
 
+## Local-only requests
+
+The API has no login, so every route answers only requests addressed to this
+machine:
+
+- `Host` must be `localhost`, a `127.x.x.x` address, or `[::1]` (any port).
+  This blocks DNS-rebinding pages. A request without a `Host` is refused.
+- `Origin`, when the browser sends one, must be one of those too. This blocks
+  other websites from calling the API. Requests without an `Origin` (curl,
+  scripts, server-side callers) are allowed.
+
+Anything else gets `403`.
+
+**Behind a proxy.** A proxy that forwards to `127.0.0.1:8080` should send
+`Host: 127.0.0.1:8080`, not the `Host` it received. If it can't, list the
+names it passes on in `ANIMUS_TRANSPORT_ALLOWED_HOSTS` (comma-separated, set
+in the environment that runs `animus web serve`; the plugin manifest declares
+it so the plugin host forwards it) or in the `allowed_hosts` key of the
+`transport/start` config. Every allowed name can call the whole API, so only
+list names that are reachable by trusted callers.
+
 ## Installation
 
 ```bash
@@ -85,18 +106,11 @@ animus plugin install animus-transport-http
 animus plugin enable animus-transport-http
 ```
 
-Bind address (default `127.0.0.1:8080`) is configurable per project via
-`.animus/config.json`:
-
-```json
-{
-  "transports": {
-    "animus-transport-http": {
-      "bind_addr": "127.0.0.1:8080"
-    }
-  }
-}
-```
+The transport binds `127.0.0.1:8080`, the default `animus web serve` uses: it
+does not pass a bind address, and it does not read a `transports` block from
+`.animus/config.json`. `ANIMUS_TRANSPORT_HTTP_BIND` is honored only when the
+plugin is started with that variable in its environment; `animus web serve`
+does not forward it (see the note in `src/main.rs` before changing that).
 
 ## Layout
 

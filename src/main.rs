@@ -52,7 +52,23 @@ fn emit_manifest_if_requested() {
             "transport/schema",
             "health/check"
         ],
-        "env_required": []
+        // The plugin host starts plugins with a cleared environment and only
+        // forwards variables declared here. ANIMUS_TRANSPORT_ALLOWED_HOSTS is
+        // optional: unset, only localhost and loopback IPs are accepted.
+        //
+        // ANIMUS_TRANSPORT_HTTP_BIND is deliberately NOT declared. Existing
+        // container deployments set it to 0.0.0.0:8080 while the host has
+        // been dropping it, so their unauthenticated API stays on loopback
+        // behind their own authenticating forwarder. Declaring it would
+        // expose the API on their network without that check.
+        "env_required": [
+            {
+                "name": "ANIMUS_TRANSPORT_ALLOWED_HOSTS",
+                "description": "Comma-separated host names to accept besides localhost and loopback IPs",
+                "sensitive": false,
+                "required": false
+            }
+        ]
     });
     println!(
         "{}",

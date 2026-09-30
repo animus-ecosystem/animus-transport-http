@@ -6,6 +6,7 @@
 pub mod backend;
 pub mod config;
 pub mod handlers;
+pub mod loopback;
 pub mod server;
 
 pub use backend::HttpTransportBackend;

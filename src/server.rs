@@ -4,9 +4,11 @@
 //! routes through `ControlClient` against `settings.control_socket_path` —
 //! no in-process service hub.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::http::{header, Method};
+use axum::middleware;
 use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -14,6 +16,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::config::HttpTransportSettings;
 use crate::handlers;
+use crate::loopback;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -21,6 +24,7 @@ pub struct AppState {
 }
 
 pub fn build_router(settings: HttpTransportSettings) -> Router {
+    let allowed_hosts = Arc::new(settings.allowed_hosts.clone());
     let state = AppState { settings };
 
     let api = Router::new()
@@ -82,6 +86,12 @@ pub fn build_router(settings: HttpTransportSettings) -> Router {
                 .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
                 .max_age(Duration::from_secs(3600)),
         )
+        // Outermost, so requests from other sites or rebound host names are
+        // refused before CORS or any handler sees them.
+        .layer(middleware::from_fn_with_state(
+            allowed_hosts,
+            loopback::guard,
+        ))
         .with_state(state)
 }
 
