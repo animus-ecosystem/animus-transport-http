@@ -19,6 +19,7 @@ fn test_settings() -> HttpTransportSettings {
         bind_addr: "127.0.0.1:0".to_string(),
         control_socket_path: PathBuf::from("/tmp/animus-transport-http-nonexistent.sock"),
         project_root: PathBuf::from("/tmp"),
+        allowed_hosts: Vec::new(),
     }
 }
 
@@ -27,6 +28,7 @@ async fn route_exists(method: &str, path: &str) -> StatusCode {
     let req = Request::builder()
         .method(method)
         .uri(path)
+        .header("host", "127.0.0.1:8080")
         .header("content-type", "application/json")
         .body(Body::from("{}"))
         .unwrap();
@@ -66,6 +68,7 @@ async fn subject_call_route_exists() {
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/subject/markdown/call")
+        .header("host", "127.0.0.1:8080")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"method":"list","params":{}}"#))
         .unwrap();
@@ -105,6 +108,7 @@ async fn subjects_create_route_exists() {
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/subjects")
+        .header("host", "127.0.0.1:8080")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"kind":"task","title":"hello"}"#))
         .unwrap();
@@ -124,6 +128,7 @@ async fn subjects_status_route_exists() {
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/subjects/task:T-1/status")
+        .header("host", "127.0.0.1:8080")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"status":"ready"}"#))
         .unwrap();
@@ -137,6 +142,7 @@ async fn workflows_execute_route_exists() {
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/workflows/execute")
+        .header("host", "127.0.0.1:8080")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"definition":"build"}"#))
         .unwrap();
@@ -170,6 +176,7 @@ async fn unreachable_daemon_returns_503_envelope() {
     let req = Request::builder()
         .method("GET")
         .uri("/api/v1/daemon/health")
+        .header("host", "127.0.0.1:8080")
         .body(Body::empty())
         .unwrap();
     let response = app.oneshot(req).await.unwrap();
